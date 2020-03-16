@@ -26,46 +26,31 @@
 /// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 /// THE SOFTWARE.
 
+import Foundation
 import SwiftUI
 
-public struct RemoteImageView<Content: View> : View {
-    @ObservedObject var imageFetcher: RemoteImageFetcher
-    var content: (_ image: Image) -> Content
-    let placeHolder: Image
+public class RemoteImageFetcher: ObservableObject {
+    @Published var imageData = Data()
+    let url: URL
     
-    @State var previousURL: URL? = nil
-    @State var imageData: Data = Data()
-    
-    public init(placeHolder: Image, imageFetcher: RemoteImageFetcher, content: @escaping (_ image: Image) -> Content) {
-        self.placeHolder = placeHolder
-        self.imageFetcher = imageFetcher
-        self.content = content
+    public init(url: URL) {
+        self.url = url
     }
     
-    public var body: some View {
-        DispatchQueue.main.async {
-            if (self.previousURL != self.imageFetcher.getURL()) {
-                self.previousURL = self.imageFetcher.getURL()
+    public func fetch() {
+        URLSession.shared.dataTask(with: url) { (data, _, _) in
+            guard let data = data else { return }
+            DispatchQueue.main.async {
+                self.imageData = data
             }
-            
-            if (!self.imageFetcher.imageData.isEmpty) {
-                self.imageData = self.imageFetcher.imageData
-            }
-        }
-        
-        let uiImage  = imageData.isEmpty ? nil : UIImage(data: imageData)
-        let image = uiImage != nil ? Image(uiImage: uiImage!) : nil
-        
-        return ZStack() {
-            if image != nil {
-                content(image!)
-            } else {
-                content(placeHolder)
-            }
-        }.onAppear(perform: loadImage)
+        }.resume()
     }
     
-    private func loadImage() {
-        imageFetcher.fetch()
+    public func getURL() -> URL {
+        return url
+    }
+    
+    public func purge() {
+        imageData = Data()
     }
 }
